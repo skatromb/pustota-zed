@@ -7,17 +7,15 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 const ROOT: &str = env!("CARGO_MANIFEST_DIR");
-const SOURCE_PALETTES: [&str; 2] = [
-    include_str!("../pustota/src/palettes/dark.json"),
-    include_str!("../pustota/src/palettes/light.json"),
-];
+const SOURCE_DIR: &str = "pustota/src/palettes";
+const SOURCE_PALETTES: [&str; 3] = ["dark.json", "light.json", "contrast.json"];
 const TARGET_THEME: &str = "extension/themes/pustota.json";
 
 fn main() -> io::Result<()> {
     let palettes = SOURCE_PALETTES
         .into_iter()
-        .map(serde_json::from_str)
-        .collect::<Result<Vec<Palette>, _>>()?;
+        .map(|file| Ok(serde_json::from_value(load_palette(file)?)?))
+        .collect::<io::Result<Vec<Palette>>>()?;
     let theme = format!(
         "{}\n",
         serde_json::to_string_pretty(&with_metadata(&palettes))?
@@ -35,6 +33,32 @@ fn main() -> io::Result<()> {
     }
 
     Ok(())
+}
+
+fn load_palette(file: &str) -> io::Result<Value> {
+    let source = fs::read_to_string(Path::new(ROOT).join(SOURCE_DIR).join(file))?;
+    let mut palette: Value = serde_json::from_str(&source)?;
+    let Some(Value::String(parent)) = palette
+        .as_object_mut()
+        .and_then(|fields| fields.remove("extends"))
+    else {
+        return Ok(palette);
+    };
+
+    let mut merged = load_palette(&parent)?;
+    override_fields(&mut merged, palette);
+    Ok(merged)
+}
+
+fn override_fields(target: &mut Value, overrides: Value) {
+    match (target, overrides) {
+        (Value::Object(fields), Value::Object(new_fields)) => {
+            for (name, field) in new_fields {
+                override_fields(fields.entry(name).or_insert(Value::Null), field);
+            }
+        }
+        (old, new) => *old = new,
+    }
 }
 
 #[derive(Deserialize)]
