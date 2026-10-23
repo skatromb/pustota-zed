@@ -1,0 +1,3 @@
+[submodule "pustota"]
+	path = pustota
+	url = https://github.com/pustota-theme/pustota.git
