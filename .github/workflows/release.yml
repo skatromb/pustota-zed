@@ -1,0 +1,27 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  registry-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check that the tag matches extension.toml
+        shell: python
+        run: |
+          import os, tomllib
+          with open("extension/extension.toml", "rb") as manifest:
+              version = tomllib.load(manifest)["version"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          assert tag == f"v{version}", f"tag {tag} does not match version {version}"
+
+      - uses: huacnlee/zed-extension-action@v2
+        with:
+          extension-name: pustota-theme
+          push-to: skatromb/extensions
+        env:
+          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
